@@ -4,9 +4,9 @@ from keras.preprocessing.image import img_to_array
 import cv2
 import numpy as np
 import tempfile
-import time
 
 # Function to load the model
+@st.cache_resource
 def load_emotion_model():
     try:
         model = load_model('./model/model.h5')
@@ -35,30 +35,33 @@ use_webcam = st.checkbox("Use Webcam")
 
 # Initialize video capture
 cap = None
+
+if 'cap' not in st.session_state:
+    st.session_state.cap = None
+
+# Manage the state of video capture
 if uploaded_file is not None:
     tfile = tempfile.NamedTemporaryFile(delete=False)
     tfile.write(uploaded_file.read())
-    cap = cv2.VideoCapture(tfile.name)
+    if st.session_state.cap:
+        st.session_state.cap.release()
+    st.session_state.cap = cv2.VideoCapture(tfile.name)
 elif use_webcam:
-    cap = cv2.VideoCapture(0)
-
-# Initialize stop state
-if 'stop' not in st.session_state:
-    st.session_state.stop = False
-
-# Create stop button
-if st.button("Stop"):
-    st.session_state.stop = True
-    time.sleep(1)  # Add a delay to ensure the stop action is processed
-    st.experimental_rerun()  # Refresh the page
+    if st.session_state.cap:
+        st.session_state.cap.release()
+    st.session_state.cap = cv2.VideoCapture(0)
+else:
+    if st.session_state.cap:
+        st.session_state.cap.release()
+    st.session_state.cap = None
 
 # Display the video frame in Streamlit
 frame_window = st.image([])
 
 # Process video
-if cap is not None:
-    while cap.isOpened() and not st.session_state.stop:
-        ret, frame = cap.read()
+if st.session_state.cap is not None and st.session_state.cap.isOpened():
+    while st.session_state.cap.isOpened():
+        ret, frame = st.session_state.cap.read()
         if not ret:
             break
 
@@ -85,6 +88,6 @@ if cap is not None:
         # Display the frame with detected faces and emotions
         frame_window.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
-    cap.release()
+    st.session_state.cap.release()
 
 cv2.destroyAllWindows()
